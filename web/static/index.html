@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>代码生成器</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/css/bootstrap.min.css">
+</head>
+<body>
+<div class="container mt-4">
+    <h1>输入 SQL 生成 MyBatis-Plus 代码</h1>
+    <form id="generateForm" class="mt-4">
+        <div class="form-group">
+            <label for="sql">SQL 语句:</label>
+            <textarea class="form-control" id="sql" name="sql" rows="10" placeholder="请输入建表语句"></textarea>
+        </div>
+        <div class="form-group">
+            <label for="do_path">DO 文件路径:</label>
+            <input type="text" class="form-control" id="do_path" name="do_path" value="/Users/weihu/GolandProjects/mybatis-plus-generator">
+        </div>
+        <div class="form-group">
+            <label for="mapper_path">Mapper 文件路径:</label>
+            <input type="text" class="form-control" id="mapper_path" name="mapper_path" value="/Users/weihu/GolandProjects/mybatis-plus-generator">
+        </div>
+        <div class="form-group">
+            <label for="dao_path">dao_path 文件路径:</label>
+            <input type="text" class="form-control" id="dao_path" name="dao_path" value="/Users/weihu/GolandProjects/mybatis-plus-generator">
+        </div>
+        <div class="form-group">
+            <label for="dao_impl_path">dao_impl_path 文件路径:</label>
+            <input type="text" class="form-control" id="dao_impl_path" name="dao_impl_path" value="/Users/weihu/GolandProjects/mybatis-plus-generator">
+        </div>
+        <div class="form-group">
+            <label for="xml_path">xml_path 文件路径:</label>
+            <input type="text" class="form-control" id="xml_path" name="xml_path" value="/Users/weihu/GolandProjects/mybatis-plus-generator">
+        </div>
+        <button type="button" class="btn btn-primary" onclick="generateCode()">生成</button>
+        <button type="button" class="btn btn-secondary ml-2" onclick="clearForm()">清空</button>
+    </form>
+</div>
+<script>
+    function generateCode() {
+        var formData = new FormData(document.getElementById('generateForm'));
+        fetch('/', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => response.text())
+            .then(data => {
+                alert(data); // 弹出“代码生成成功”
+            })
+            .catch(error => {
+                alert('生成失败: ' + error);
+            });
+    }
+    function clearForm() {
+        document.getElementById("generateForm").reset();
+    }
+</script>
+</body>
+</html>

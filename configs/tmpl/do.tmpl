@@ -1,0 +1,11 @@
+package {{.DOPackage}};
+
+import lombok.Data;
+
+@Data
+public class {{.DOClassName}} {
+{{range .Fields}}    /**
+     * {{.Comment}}
+     */
+    private {{.JavaType}} {{.Name}};
+{{end}}}

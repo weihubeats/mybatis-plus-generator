@@ -1,0 +1,9 @@
+package {{.DOPackage}};
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.apache.ibatis.annotations.Mapper;
+import com.example.model.{{.DOClassName}};
+
+@Mapper
+public interface {{.MapperClassName}} extends BaseMapper<{{.DOClassName}}> {
+}

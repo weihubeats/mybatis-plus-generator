@@ -1,0 +1,15 @@
+package {{.DOPackage}};
+
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.stereotype.Repository;
+import lombok.RequiredArgsConstructor;
+import com.example.mapper.{{.MapperClassName}};
+import com.example.model.{{.DOClassName}};
+import com.example.dao.{{.DAOClassName}};
+
+@Repository
+@RequiredArgsConstructor
+public class {{.DAOImplClassName}} extends ServiceImpl<{{.MapperClassName}}, {{.DOClassName}}> implements {{.DAOClassName}} {
+
+    private final {{.MapperClassName}} {{.MapperVarName}};
+}
