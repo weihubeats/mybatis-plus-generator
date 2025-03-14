@@ -1,7 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/blastrain/vitess-sqlparser/tidbparser/ast"
+	"github.com/blastrain/vitess-sqlparser/tidbparser/dependency/mysql"
+	"github.com/blastrain/vitess-sqlparser/tidbparser/parser"
+	pg_query "github.com/pganalyze/pg_query_go/v4"
 	"log"
 	"mybatis-plus-generator/configs"
 	"net/http"
@@ -25,6 +30,16 @@ type TableInfo struct {
 	Fields    []Field // 字段列表
 }
 
+func (tableInfo *TableInfo) toTemplateFields() []Field {
+	newField := make([]Field, len(tableInfo.Fields))
+	for i, field := range tableInfo.Fields {
+		newField[i] = Field{Name: toCamelCase(field.Name), Type: field.Type, JavaType: field.JavaType, Comment: field.Comment}
+
+	}
+	return newField
+
+}
+
 type TemplateData struct {
 	DOClassName      string
 	MapperClassName  string
@@ -36,6 +51,19 @@ type TemplateData struct {
 	DOPackage        string
 	MapperPackage    string
 	DAOPackage       string
+}
+
+type Comment struct {
+	Type string // "line" 或 "block"
+
+	Content string // 注释内容
+
+	Position int // 注释在SQL中的位置
+
+	ColumnRef string // 如果是字段注释，引用的字段名
+
+	TableRef string // 如果是表注释，引用的表名
+
 }
 
 const (
@@ -83,7 +111,7 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 解析SQL获取表信息
-	tableInfo, err := parseSQL(sql)
+	tableInfo, err := parseSQL(sql, "postgresql")
 	if err != nil {
 		http.Error(w, fmt.Sprintf("解析SQL失败: %v", err), http.StatusBadRequest)
 		return
@@ -105,7 +133,7 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		DAOImplClassName: toCamelCase(tableInfo.TableName) + "DAOImpl",
 		MapperVarName:    strings.ToLower(string(tableInfo.TableName[0])) + tableInfo.TableName[1:] + "Mapper",
 		TableName:        tableInfo.TableName,
-		Fields:           tableInfo.Fields,
+		Fields:           tableInfo.toTemplateFields(),
 	}
 
 	// 定义模板和输出文件的映射
@@ -129,50 +157,341 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("代码生成成功"))
 }
 
-func parseSQL(sql string) (TableInfo, error) {
+func parseSQL(sql string, dbType string) (TableInfo, error) {
+	dbType = strings.ToLower(dbType)
+
+	if dbType == "mysql" {
+		return parseMySQLDDL(sql)
+	} else if dbType == "postgresql" || dbType == "postgres" {
+		return parsePostgreSQLDDL(sql)
+	}
+
+	return TableInfo{}, fmt.Errorf("不支持的数据库类型: %s", dbType)
+}
+
+func parseMySQLDDL(sql string) (TableInfo, error) {
+	p := parser.New()
+	stmtNodes, err := p.Parse(sql, mysql.DefaultCharset, "")
+	if err != nil {
+		return TableInfo{}, fmt.Errorf("解析MySQL SQL失败: %w", err)
+	}
+
+	if len(stmtNodes) == 0 {
+		return TableInfo{}, fmt.Errorf("没有找到SQL语句")
+	}
+
+	// 查找CREATE TABLE语句
+	var createTableStmt *ast.CreateTableStmt
+	for _, stmtNode := range stmtNodes {
+		if stmt, ok := stmtNode.(*ast.CreateTableStmt); ok {
+			createTableStmt = stmt
+			break
+		}
+	}
+
+	if createTableStmt == nil {
+		return TableInfo{}, fmt.Errorf("没有找到CREATE TABLE语句")
+	}
+
 	// 提取表名
-	tableNameMatch := tableNameRegex.FindStringSubmatch(sql)
-	if len(tableNameMatch) < 2 {
-		return TableInfo{}, fmt.Errorf("无法提取表名")
-	}
-	tableName := tableNameMatch[1]
+	tableName := createTableStmt.Table.Name.String()
 
-	// 提取字段定义
-	fieldMatches := fieldRegex.FindAllStringSubmatch(sql, -1)
-	fieldsMap := make(map[string]Field)
-	for _, match := range fieldMatches {
-		if len(match) >= 3 {
-			fieldName := match[1]
-			fieldType := match[2]
-			fieldsMap[fieldName] = Field{
-				Name:     fieldName,
-				Type:     fieldType,
-				JavaType: sqlTypeToJavaType(fieldType),
-				Comment:  "",
+	// 提取字段
+	fields := make([]Field, 0, len(createTableStmt.Cols))
+	for _, col := range createTableStmt.Cols {
+		fieldName := col.Name.Name.String()
+		fieldType := col.Tp.InfoSchemaStr()
+		comment := ""
+
+		// 提取注释
+		for _, opt := range col.Options {
+			if opt.Tp == ast.ColumnOptionComment {
+				comment = opt.Expr.GetDatum().GetString()
+				break
 			}
 		}
-	}
 
-	// 提取字段注释
-	commentMatches := commentRegex.FindAllStringSubmatch(sql, -1)
-	for _, match := range commentMatches {
-		if len(match) >= 3 {
-			fieldName := match[1]
-			comment := match[2]
-			if field, ok := fieldsMap[fieldName]; ok {
-				field.Comment = comment
-				fieldsMap[fieldName] = field
-			}
-		}
-	}
-
-	// 将 map 转换为 slice
-	fields := make([]Field, 0, len(fieldsMap))
-	for _, field := range fieldsMap {
-		fields = append(fields, field)
+		fields = append(fields, Field{
+			Name:     fieldName,
+			Type:     fieldType,
+			JavaType: sqlTypeToJavaType(fieldType, "mysql"),
+			Comment:  comment,
+		})
 	}
 
 	return TableInfo{TableName: tableName, Fields: fields}, nil
+}
+
+func parsePostgreSQLDDL(sql string) (TableInfo, error) {
+
+	// 解析 SQL
+	result, err := pg_query.Parse(sql)
+	if err != nil {
+		return TableInfo{}, fmt.Errorf("解析 PostgreSQL SQL 失败: %w", err)
+	}
+
+	// 转换为 JSON 以便更容易处理
+	jsonResult, err := json.Marshal(result)
+	if err != nil {
+		return TableInfo{}, fmt.Errorf("JSON 转换失败: %w", err)
+	}
+	// 解析 JSON
+	var parsedJSON map[string]interface{}
+
+	if err := json.Unmarshal(jsonResult, &parsedJSON); err != nil {
+		return TableInfo{}, fmt.Errorf("JSON 解析失败: %w", err)
+	}
+	// 提取表名和字段
+	tableName := ""
+
+	fields := []Field{}
+	stmts, ok := parsedJSON["stmts"].([]interface{})
+	if !ok || len(stmts) == 0 {
+		return TableInfo{}, fmt.Errorf("未找到语句")
+	}
+
+	// 遍历每个语句
+	for _, stmt := range stmts {
+		stmtMap, ok := stmt.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		stmtObj, ok := stmtMap["stmt"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		// 查找 CreateStmt
+		node, _ := stmtObj["Node"].(map[string]interface{})
+
+		createStmt, ok := node["CreateStmt"].(map[string]interface{})
+
+		if !ok {
+			continue
+		}
+		// 提取表名
+		relation, ok := createStmt["relation"].(map[string]interface{})
+		if ok {
+			relname, ok := relation["relname"].(string)
+			if ok {
+				tableName = relname
+			}
+		}
+
+		// 提取字段
+		tableElts, ok := createStmt["table_elts"].([]interface{})
+
+		if !ok {
+			continue
+		}
+
+		for _, elt := range tableElts {
+			eltMap, ok := elt.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			// 提取 ColumnDef
+			m := eltMap["Node"].(map[string]interface{})
+			columnDef, ok := m["ColumnDef"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+			// 提取列名
+			colname, ok := columnDef["colname"].(string)
+			if !ok {
+				continue
+			}
+
+			// 提取类型
+			typeName := "unknown"
+			typeNameObj, ok := columnDef["type_name"].(map[string]interface{})
+			if ok {
+				names, ok := typeNameObj["names"].([]interface{})
+				if ok && len(names) > 0 {
+					lastName := names[len(names)-1]
+					lastNameMap, ok := lastName.(map[string]interface{})
+					if ok {
+						m2 := lastNameMap["Node"].(map[string]interface{})
+						stringObj, ok := m2["String_"].(map[string]interface{})
+						if ok {
+							typeName, _ = stringObj["sval"].(string)
+						}
+
+					}
+
+				}
+
+			}
+			// 尝试提取注释 - 在 PostgreSQL 中，注释通常是分开的语句
+
+			// 这里我们先提取不到，需要另外处理
+
+			comment := ""
+			// 添加字段
+			fields = append(fields, Field{
+				// todo 不应该在此处进行驼峰转换
+				Name:     colname,
+				Type:     typeName,
+				JavaType: sqlTypeToJavaType(typeName, "postgresql"),
+				Comment:  comment,
+			})
+
+		}
+
+	}
+
+	if tableName == "" {
+		return TableInfo{}, fmt.Errorf("未找到表名")
+
+	}
+
+	comments := parsePostgreSQLComments(sql)
+	columnComments := make(map[string]string)
+	for _, comment := range comments {
+		if comment.ColumnRef != "" && comment.TableRef == tableName {
+
+			columnComments[comment.ColumnRef] = comment.Content
+
+		}
+
+	}
+
+	for i, field := range fields {
+
+		// 将字段名转回原始的SQL字段名以匹配注释
+
+		originalFieldName := field.Name
+
+		if comment, ok := columnComments[originalFieldName]; ok {
+
+			fields[i].Comment = comment
+
+		}
+
+	}
+
+	return TableInfo{TableName: tableName, Fields: fields}, nil
+
+}
+
+func parsePostgreSQLComments(sql string) []Comment {
+
+	comments := []Comment{}
+
+	// 1. 解析单行注释 (--开始的注释)
+
+	lineCommentRegex := regexp.MustCompile(`--(.*)`)
+
+	lineMatches := lineCommentRegex.FindAllStringSubmatchIndex(sql, -1)
+
+	for _, match := range lineMatches {
+
+		if len(match) >= 4 {
+
+			start, end := match[2], match[3]
+
+			commentContent := strings.TrimSpace(sql[start:end])
+
+			comments = append(comments, Comment{
+
+				Type: "line",
+
+				Content: commentContent,
+
+				Position: match[0],
+			})
+
+		}
+
+	}
+
+	// 2. 解析块注释 (/* */包围的注释)
+
+	blockCommentRegex := regexp.MustCompile(`/\*([\s\S]*?)\*/`)
+
+	blockMatches := blockCommentRegex.FindAllStringSubmatchIndex(sql, -1)
+
+	for _, match := range blockMatches {
+
+		if len(match) >= 4 {
+
+			start, end := match[2], match[3]
+
+			commentContent := strings.TrimSpace(sql[start:end])
+
+			comments = append(comments, Comment{
+
+				Type: "block",
+
+				Content: commentContent,
+
+				Position: match[0],
+			})
+
+		}
+
+	}
+
+	// 3. 解析COMMENT ON语句
+
+	commentOnRegex := regexp.MustCompile(`(?i)COMMENT\s+ON\s+COLUMN\s+(\w+)\.(\w+)\s+IS\s+'(.*?)'`)
+
+	onMatches := commentOnRegex.FindAllStringSubmatch(sql, -1)
+
+	for _, match := range onMatches {
+
+		if len(match) >= 4 {
+
+			tableRef := match[1]
+
+			columnRef := match[2]
+
+			commentContent := match[3]
+
+			comments = append(comments, Comment{
+
+				Type: "comment_on",
+
+				Content: commentContent,
+
+				TableRef: tableRef,
+
+				ColumnRef: columnRef,
+			})
+
+		}
+
+	}
+
+	// 解析表注释
+
+	tableCommentRegex := regexp.MustCompile(`(?i)COMMENT\s+ON\s+TABLE\s+(\w+)\s+IS\s+'(.*?)'`)
+
+	tableMatches := tableCommentRegex.FindAllStringSubmatch(sql, -1)
+
+	for _, match := range tableMatches {
+
+		if len(match) >= 3 {
+
+			tableRef := match[1]
+
+			commentContent := match[2]
+
+			comments = append(comments, Comment{
+
+				Type: "table_comment",
+
+				Content: commentContent,
+
+				TableRef: tableRef,
+			})
+
+		}
+
+	}
+
+	return comments
+
 }
 
 func generateFromTemplate(tmplFile string, data interface{}, outputFile string) error {
@@ -228,27 +547,78 @@ func toCamelCase(s string) string {
 	return string(data[:])
 }
 
-func sqlTypeToJavaType(sqlType string) string {
-	sqlType = strings.ToUpper(sqlType)
+func sqlTypeToJavaType(sqlType string, dbType string) string {
+	sqlType = strings.ToUpper(strings.TrimSpace(sqlType))
+	dbType = strings.ToLower(dbType)
 
-	switch {
-	case strings.HasPrefix(sqlType, "INT"):
-		return "Integer"
-	case strings.HasPrefix(sqlType, "BIGINT"):
-		return "Long"
-	case strings.HasPrefix(sqlType, "DECIMAL"):
-		return "BigDecimal"
-	case strings.HasPrefix(sqlType, "FLOAT"), strings.HasPrefix(sqlType, "DOUBLE"):
-		return "Double"
-	case strings.HasPrefix(sqlType, "BOOL"), strings.HasPrefix(sqlType, "TINYINT(1)"):
-		return "Boolean"
-	case strings.HasPrefix(sqlType, "DATE"):
-		return "Date"
-	case strings.HasPrefix(sqlType, "TIMESTAMP"), strings.HasPrefix(sqlType, "DATETIME"):
-		return "Date"
-	default:
-		return "String"
+	// 处理带长度的类型，如 VARCHAR(255)
+	typeParts := strings.Split(sqlType, "(")
+	baseType := typeParts[0]
+
+	if dbType == "mysql" {
+		switch baseType {
+		case "INT", "INTEGER", "SMALLINT", "MEDIUMINT", "TINYINT":
+			if baseType == "TINYINT" && len(typeParts) > 1 && strings.TrimRight(typeParts[1], ")") == "1" {
+				return "Boolean"
+			}
+			return "Integer"
+		case "BIGINT":
+			return "Long"
+		case "DECIMAL", "NUMERIC":
+			return "BigDecimal"
+		case "FLOAT", "DOUBLE", "REAL":
+			return "Double"
+		case "BOOLEAN", "BOOL":
+			return "Boolean"
+		case "DATE":
+			return "LocalDate"
+		case "TIME":
+			return "LocalTime"
+		case "TIMESTAMP", "DATETIME":
+			return "LocalDateTime"
+		case "CHAR", "VARCHAR", "TEXT", "TINYTEXT", "MEDIUMTEXT", "LONGTEXT":
+			return "String"
+		case "BLOB", "MEDIUMBLOB", "LONGBLOB", "BINARY", "VARBINARY":
+			return "byte[]"
+		default:
+			return "String"
+		}
+	} else if dbType == "postgresql" || dbType == "postgres" {
+		switch baseType {
+		case "INT", "INTEGER", "SMALLINT":
+			return "Integer"
+		case "BIGINT":
+			return "Long"
+		case "DECIMAL", "NUMERIC":
+			return "BigDecimal"
+		case "REAL", "DOUBLE PRECISION":
+			return "Double"
+		case "BOOLEAN":
+			return "Boolean"
+		case "DATE":
+			return "LocalDate"
+		case "TIME", "TIME WITHOUT TIME ZONE", "TIME WITH TIME ZONE":
+			return "LocalTime"
+		case "TIMESTAMP", "TIMESTAMP WITHOUT TIME ZONE", "TIMESTAMP WITH TIME ZONE":
+			return "LocalDateTime"
+		case "CHAR", "CHARACTER", "VARCHAR", "CHARACTER VARYING", "TEXT":
+			return "String"
+		case "BYTEA":
+			return "byte[]"
+		case "UUID":
+			return "UUID"
+		case "JSON", "JSONB":
+			return "String" // 或者使用特定的JSON库
+		case "ARRAY":
+			return "List<Object>" // 或者更具体的类型
+		case "INTERVAL":
+			return "Duration"
+		default:
+			return "String"
+		}
 	}
+
+	return "String" // 默认
 }
 
 func extractPackageName(path string) string {

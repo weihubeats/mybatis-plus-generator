@@ -1,7 +1,5 @@
 <!DOCTYPE html>
-
 <html lang="zh">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,217 +12,129 @@
             color: #6c757d;
             margin-top: 0.25rem;
         }
-
         .loading {
             display: none;
             margin-left: 10px;
         }
-
         .result-container {
             display: none;
             margin-top: 20px;
             padding: 15px;
-
             border-radius: 5px;
-
             background-color: #f8f9fa;
-
         }
-
         textarea {
-
             font-family: 'Courier New', monospace;
-
         }
-
     </style>
-
 </head>
 
 <body>
-
 <div class="container mt-4">
-
     <div class="card">
-
         <div class="card-header bg-primary text-white">
-
             <h2 class="mb-0">MyBatis-Plus 代码生成器</h2>
-
         </div>
-
         <div class="card-body">
-
             <form id="generateForm" class="mt-2">
-
                 <div class="form-group">
-
                     <label for="sql"><i class="bi bi-code-square"></i> SQL 建表语句:</label>
-
                     <textarea class="form-control" id="sql" name="sql" rows="8" placeholder="请输入建表语句"
                               required></textarea>
-
                     <small class="form-text text-muted">例如: CREATE TABLE user (id INT, name VARCHAR(255), ...)</small>
-
                 </div>
-
-
                 <div class="form-group">
-
                     <label for="base_path"><i class="bi bi-folder"></i> 基本路径前缀:</label>
-
                     <input type="text" class="form-control" id="base_path" name="base_path"
                            value="/Users/weihu/GolandProjects/mybatis-plus-generator" required>
-
                     <small class="form-text text-muted">所有其他路径将基于此路径自动生成</small>
-
                 </div>
 
-
                 <div class="row">
-
                     <div class="col-md-6">
-
                         <div class="form-group">
-
                             <label for="do_suffix"><i class="bi bi-file-code"></i> DO 路径后缀:</label>
-
                             <input type="text" class="form-control" id="do_suffix" name="do_suffix"
                                    value="/model/entity" placeholder="输入相对路径">
-
                             <input type="hidden" id="do_path" name="do_path">
-
                             <div class="path-preview" id="do_path_preview"></div>
-
                         </div>
-
                     </div>
 
                     <div class="col-md-6">
-
                         <div class="form-group">
-
                             <label for="mapper_suffix"><i class="bi bi-file-code"></i> Mapper 路径后缀:</label>
-
                             <input type="text" class="form-control" id="mapper_suffix" name="mapper_suffix"
                                    value="/mapper" placeholder="输入相对路径">
-
                             <input type="hidden" id="mapper_path" name="mapper_path">
-
                             <div class="path-preview" id="mapper_path_preview"></div>
-
                         </div>
-
                     </div>
-
                 </div>
 
 
                 <div class="row">
-
                     <div class="col-md-6">
-
                         <div class="form-group">
-
                             <label for="dao_suffix"><i class="bi bi-file-code"></i> DAO 路径后缀:</label>
-
                             <input type="text" class="form-control" id="dao_suffix" name="dao_suffix" value="/dao"
                                    placeholder="输入相对路径">
-
                             <input type="hidden" id="dao_path" name="dao_path">
-
                             <div class="path-preview" id="dao_path_preview"></div>
-
                         </div>
-
                     </div>
 
                     <div class="col-md-6">
-
                         <div class="form-group">
-
                             <label for="dao_impl_suffix"><i class="bi bi-file-code"></i> DAO Impl 路径后缀:</label>
-
                             <input type="text" class="form-control" id="dao_impl_suffix" name="dao_impl_suffix"
                                    value="/dao/impl" placeholder="输入相对路径">
-
                             <input type="hidden" id="dao_impl_path" name="dao_impl_path">
-
                             <div class="path-preview" id="dao_impl_path_preview"></div>
-
                         </div>
-
                     </div>
-
                 </div>
 
 
                 <div class="form-group">
-
                     <label for="xml_suffix"><i class="bi bi-file-code"></i> XML 路径后缀:</label>
-
                     <input type="text" class="form-control" id="xml_suffix" name="xml_suffix" value="/resources/mapper"
                            placeholder="输入相对路径">
-
                     <input type="hidden" id="xml_path" name="xml_path">
-
                     <div class="path-preview" id="xml_path_preview"></div>
-
                 </div>
 
 
                 <div class="form-group mt-4">
-
                     <button type="button" class="btn btn-primary" id="generateBtn" onclick="generateCode()">
-
                         <i class="bi bi-lightning-charge"></i> 生成代码
-
                     </button>
-
                     <button type="button" class="btn btn-outline-secondary ml-2" onclick="clearForm()">
-
                         <i class="bi bi-x-circle"></i> 清空
-
                     </button>
-
                     <div class="spinner-border text-primary loading" id="loadingIndicator" role="status">
-
                         <span class="sr-only">生成中...</span>
-
                     </div>
-
                 </div>
-
             </form>
 
 
             <div class="result-container" id="resultContainer">
-
                 <div class="d-flex justify-content-between align-items-center mb-3">
-
                     <h4 class="mb-0"><i class="bi bi-check-circle-fill text-success"></i> 生成结果</h4>
-
                     <button class="btn btn-sm btn-outline-primary" id="copyResultBtn" onclick="copyResult()">
-
                         <i class="bi bi-clipboard"></i> 复制
-
                     </button>
-
                 </div>
-
                 <div id="generationResult"></div>
-
             </div>
-
         </div>
 
     </div>
 
 
     <div class="mt-3 text-center text-muted">
-
         <small>© 2023 MyBatis-Plus 代码生成器 - 让代码生成更简单</small>
-
     </div>
 
 </div>
@@ -233,136 +143,73 @@
 <script>
 
     // 初始化页面时更新所有路径预览
-
     document.addEventListener('DOMContentLoaded', function () {
-
         updateAllPaths();
-
-
         // 添加基本路径变化的监听器
-
         document.getElementById('base_path').addEventListener('input', updateAllPaths);
-
-
         // 添加所有后缀输入框的监听器
-
         document.querySelectorAll('[id$="_suffix"]').forEach(function (input) {
-
             input.addEventListener('input', updateAllPaths);
-
         });
-
     });
 
 
     // 更新所有路径
-
     function updateAllPaths() {
-
         const basePath = document.getElementById('base_path').value.trim();
-
-
         // 更新所有路径
-
         updatePath('do');
-
         updatePath('mapper');
-
         updatePath('dao');
-
         updatePath('dao_impl');
-
         updatePath('xml');
-
     }
 
 
     // 更新单个路径
 
     function updatePath(type) {
-
         const basePath = document.getElementById('base_path').value.trim();
-
         const suffix = document.getElementById(`${type}_suffix`).value.trim();
-
-
         // 确保后缀以 / 开头
-
         const formattedSuffix = suffix.startsWith('/') ? suffix : '/' + suffix;
-
-
         // 计算完整路径
-
         const fullPath = basePath + formattedSuffix;
-
-
         // 更新隐藏输入框和预览
-
         document.getElementById(`${type}_path`).value = fullPath;
-
         document.getElementById(`${type}_path_preview`).textContent = `完整路径: ${fullPath}`;
-
     }
 
 
     // 生成代码
 
     function generateCode() {
-
         if (!validateForm()) {
-
             return;
-
         }
 
-
         // 显示加载指示器并禁用生成按钮
-
         const loadingIndicator = document.getElementById('loadingIndicator');
-
         const generateBtn = document.getElementById('generateBtn');
-
         loadingIndicator.style.display = 'inline-block';
-
         generateBtn.disabled = true;
-
-
         // 隐藏之前的结果
-
         document.getElementById('resultContainer').style.display = 'none';
-
-
         // 准备表单数据
-
         var formData = new FormData(document.getElementById('generateForm'));
-
-
         fetch('/', {
-
             method: 'POST',
-
             body: formData
-
         })
-
             .then(response => {
-
                 if (!response.ok) {
-
-                    throw new Error('网络响应异常');
-
+                    throw new Error(response.body);
                 }
-
                 return response.text();
-
             })
-
             .then(data => {
-
                 // 显示结果
-
                 document.getElementById('generationResult').innerHTML = formatResult(data);
-
                 document.getElementById('resultContainer').style.display = 'block';
 
 
