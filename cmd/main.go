@@ -54,15 +54,11 @@ type TemplateData struct {
 }
 
 type Comment struct {
-	Type string // "line" 或 "block"
-
-	Content string // 注释内容
-
-	Position int // 注释在SQL中的位置
-
+	Type      string // "line" 或 "block"
+	Content   string // 注释内容
+	Position  int    // 注释在SQL中的位置
 	ColumnRef string // 如果是字段注释，引用的字段名
-
-	TableRef string // 如果是表注释，引用的表名
+	TableRef  string // 如果是表注释，引用的表名
 
 }
 
@@ -98,6 +94,7 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 
 	// 验证表单数据
 	sql := r.FormValue("sql")
+	dbType := r.FormValue("dbType")
 	doPath := r.FormValue("do_path")
 	mapperPath := r.FormValue("mapper_path")
 	daoPath := r.FormValue("dao_path")
@@ -105,7 +102,7 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 	xmlPath := r.FormValue("xml_path")
 
 	// 验证必填字段
-	if sql == "" || doPath == "" || mapperPath == "" || daoPath == "" || daoImplPath == "" || xmlPath == "" {
+	if sql == "" || doPath == "" || mapperPath == "" || daoPath == "" || daoImplPath == "" || xmlPath == "" || dbType == "" {
 		http.Error(w, "SQL 或路径不能为空", http.StatusBadRequest)
 		return
 	}
@@ -375,87 +372,49 @@ func parsePostgreSQLDDL(sql string) (TableInfo, error) {
 }
 
 func parsePostgreSQLComments(sql string) []Comment {
-
 	comments := []Comment{}
-
 	// 1. 解析单行注释 (--开始的注释)
-
 	lineCommentRegex := regexp.MustCompile(`--(.*)`)
-
 	lineMatches := lineCommentRegex.FindAllStringSubmatchIndex(sql, -1)
-
 	for _, match := range lineMatches {
-
 		if len(match) >= 4 {
-
 			start, end := match[2], match[3]
-
 			commentContent := strings.TrimSpace(sql[start:end])
-
 			comments = append(comments, Comment{
-
-				Type: "line",
-
-				Content: commentContent,
-
+				Type:     "line",
+				Content:  commentContent,
 				Position: match[0],
 			})
-
 		}
-
 	}
 
 	// 2. 解析块注释 (/* */包围的注释)
-
 	blockCommentRegex := regexp.MustCompile(`/\*([\s\S]*?)\*/`)
-
 	blockMatches := blockCommentRegex.FindAllStringSubmatchIndex(sql, -1)
-
 	for _, match := range blockMatches {
-
 		if len(match) >= 4 {
-
 			start, end := match[2], match[3]
-
 			commentContent := strings.TrimSpace(sql[start:end])
-
 			comments = append(comments, Comment{
-
-				Type: "block",
-
-				Content: commentContent,
-
+				Type:     "block",
+				Content:  commentContent,
 				Position: match[0],
 			})
-
 		}
-
 	}
 
 	// 3. 解析COMMENT ON语句
-
 	commentOnRegex := regexp.MustCompile(`(?i)COMMENT\s+ON\s+COLUMN\s+(\w+)\.(\w+)\s+IS\s+'(.*?)'`)
-
 	onMatches := commentOnRegex.FindAllStringSubmatch(sql, -1)
-
 	for _, match := range onMatches {
-
 		if len(match) >= 4 {
-
 			tableRef := match[1]
-
 			columnRef := match[2]
-
 			commentContent := match[3]
-
 			comments = append(comments, Comment{
-
-				Type: "comment_on",
-
-				Content: commentContent,
-
-				TableRef: tableRef,
-
+				Type:      "comment_on",
+				Content:   commentContent,
+				TableRef:  tableRef,
 				ColumnRef: columnRef,
 			})
 
@@ -466,26 +425,16 @@ func parsePostgreSQLComments(sql string) []Comment {
 	// 解析表注释
 
 	tableCommentRegex := regexp.MustCompile(`(?i)COMMENT\s+ON\s+TABLE\s+(\w+)\s+IS\s+'(.*?)'`)
-
 	tableMatches := tableCommentRegex.FindAllStringSubmatch(sql, -1)
-
 	for _, match := range tableMatches {
-
 		if len(match) >= 3 {
-
 			tableRef := match[1]
-
 			commentContent := match[2]
-
 			comments = append(comments, Comment{
-
-				Type: "table_comment",
-
-				Content: commentContent,
-
+				Type:     "table_comment",
+				Content:  commentContent,
 				TableRef: tableRef,
 			})
-
 		}
 
 	}
