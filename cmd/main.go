@@ -6,6 +6,7 @@ import (
 	"github.com/blastrain/vitess-sqlparser/tidbparser/ast"
 	"github.com/blastrain/vitess-sqlparser/tidbparser/dependency/mysql"
 	"github.com/blastrain/vitess-sqlparser/tidbparser/parser"
+	"github.com/iancoleman/strcase"
 	pg_query "github.com/pganalyze/pg_query_go/v4"
 	"log"
 	"mybatis-plus-generator/configs"
@@ -33,7 +34,7 @@ type TableInfo struct {
 func (tableInfo *TableInfo) toTemplateFields() []Field {
 	newField := make([]Field, len(tableInfo.Fields))
 	for i, field := range tableInfo.Fields {
-		newField[i] = Field{Name: toCamelCase(field.Name), Type: field.Type, JavaType: field.JavaType, Comment: field.Comment}
+		newField[i] = Field{Name: strcase.ToLowerCamel(field.Name), Type: field.Type, JavaType: field.JavaType, Comment: field.Comment}
 
 	}
 	return newField
@@ -51,6 +52,7 @@ type TemplateData struct {
 	DOPackage        string
 	MapperPackage    string
 	DAOPackage       string
+	DAOImplPackage   string
 }
 
 type Comment struct {
@@ -118,16 +120,18 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 	doPackage := extractPackageName(doPath)
 	mapperPackage := extractPackageName(mapperPath)
 	daoPackage := extractPackageName(daoPath)
+	daoImplPackage := extractPackageName(daoImplPath)
 
 	// 准备模板数据
 	data := TemplateData{
 		DOPackage:        doPackage,
 		MapperPackage:    mapperPackage,
 		DAOPackage:       daoPackage,
-		DOClassName:      toCamelCase(tableInfo.TableName) + "DO",
-		MapperClassName:  toCamelCase(tableInfo.TableName) + "Mapper",
-		DAOClassName:     toCamelCase(tableInfo.TableName) + "DAO",
-		DAOImplClassName: toCamelCase(tableInfo.TableName) + "DAOImpl",
+		DAOImplPackage:   daoImplPackage,
+		DOClassName:      strcase.ToCamel(tableInfo.TableName) + "DO",
+		MapperClassName:  strcase.ToCamel(tableInfo.TableName) + "Mapper",
+		DAOClassName:     strcase.ToCamel(tableInfo.TableName) + "DAO",
+		DAOImplClassName: strcase.ToCamel(tableInfo.TableName) + "DAOImpl",
 		MapperVarName:    strings.ToLower(string(tableInfo.TableName[0])) + tableInfo.TableName[1:] + "Mapper",
 		TableName:        tableInfo.TableName,
 		Fields:           tableInfo.toTemplateFields(),
@@ -471,31 +475,6 @@ func generateFromTemplate(tmplFile string, data interface{}, outputFile string) 
 	return nil
 }
 
-// 转换为驼峰命名
-func toCamelCase(s string) string {
-	data := make([]byte, 0, len(s))
-	j := false
-	k := false
-	num := len(s) - 1
-	for i := 0; i <= num; i++ {
-		d := s[i]
-		if k == false && d >= 'A' && d <= 'Z' {
-			k = true
-		}
-		if d >= 'a' && d <= 'z' && (j || k == false) {
-			d = d - 32
-			j = false
-			k = true
-		}
-		if k && d == '_' && num > i && s[i+1] >= 'a' && s[i+1] <= 'z' {
-			j = true
-			continue
-		}
-		data = append(data, d)
-	}
-	return string(data[:])
-}
-
 func sqlTypeToJavaType(sqlType string, dbType string) string {
 	sqlType = strings.ToUpper(strings.TrimSpace(sqlType))
 	dbType = strings.ToLower(dbType)
@@ -571,11 +550,73 @@ func sqlTypeToJavaType(sqlType string, dbType string) string {
 }
 
 func extractPackageName(path string) string {
+	path = filepath.ToSlash(path) // 统一路径分隔符
 	parts := strings.Split(path, "/")
-	for i, part := range parts {
-		if part == "java" && i < len(parts)-1 {
-			return strings.Join(parts[i+1:], ".")
+	defaultPackage := "default.package"
+
+	// 1. 尝试匹配标准Maven/Gradle源码目录结构
+	for i := 0; i < len(parts)-2; i++ {
+		if parts[i] == "src" {
+			if parts[i+1] == "main" && parts[i+2] == "java" {
+				return joinValidParts(parts[i+3:])
+			}
+			if parts[i+1] == "test" && parts[i+2] == "java" {
+				return joinValidParts(parts[i+3:])
+			}
 		}
 	}
+
+	// 2. 尝试匹配Java目录后的包根
+	for i, part := range parts {
+		if part == "java" && i < len(parts)-1 {
+			if isPackageRoot(parts[i+1]) {
+				return joinValidParts(parts[i+1:])
+			}
+		}
+	}
+
+	// 3. 直接查找包根目录（com/org等）
+	for i, part := range parts {
+		if isPackageRoot(part) {
+			return joinValidParts(parts[i:])
+		}
+	}
+
+	// 4. 回退策略：找到最后一个存在的包根目录
+	if lastIndex := findLastPackageRoot(parts); lastIndex != -1 {
+		return joinValidParts(parts[lastIndex:])
+	}
+
 	return defaultPackage
+}
+
+// 判断是否是包根目录
+func isPackageRoot(part string) bool {
+	return part == "com" || part == "org" || part == "net" ||
+		part == "io" || part == "cn" || part == "edu"
+}
+
+// 查找最后一个包根目录位置
+func findLastPackageRoot(parts []string) int {
+	for i := len(parts) - 1; i >= 0; i-- {
+		if isPackageRoot(parts[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
+// 拼接有效路径并过滤非法字符
+func joinValidParts(parts []string) string {
+	validParts := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p == "" || strings.ContainsAny(p, " -$") {
+			continue
+		}
+		validParts = append(validParts, p)
+	}
+	if len(validParts) == 0 {
+		return "default.package"
+	}
+	return strings.Join(validParts, ".")
 }

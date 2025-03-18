@@ -1,11 +1,11 @@
-package {{.DOPackage}};
+package {{.DAOImplPackage}};
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Repository;
 import lombok.RequiredArgsConstructor;
-import com.example.mapper.{{.MapperClassName}};
-import com.example.model.{{.DOClassName}};
-import com.example.dao.{{.DAOClassName}};
+import {{.MapperPackage}}.{{.MapperClassName}};
+import {{.DOPackage}}.{{.DOClassName}};
+import {{.DAOPackage}}.{{.DAOClassName}};
 
 @Repository
 @RequiredArgsConstructor

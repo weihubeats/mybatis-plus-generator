@@ -9,6 +9,7 @@ require (
 
 require (
 	github.com/golang/protobuf v1.4.2 // indirect
+	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/juju/errors v0.0.0-20170703010042-c7d06af17c68 // indirect
 	golang.org/x/text v0.0.0-20180302201248-b7ef84aaf62a // indirect
 	google.golang.org/protobuf v1.23.0 // indirect
