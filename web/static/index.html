@@ -115,7 +115,7 @@
 
                 <div class="form-group">
                     <label for="xml_suffix"><i class="bi bi-file-code"></i> XML 路径后缀:</label>
-                    <input type="text" class="form-control" id="xml_suffix" name="xml_suffix" value="/resources/mybatis"
+                    <input type="text" class="form-control" id="xml_suffix" name="xml_suffix" value="/mybatis"
                            placeholder="输入相对路径">
                     <input type="hidden" id="xml_path" name="xml_path">
                     <div class="path-preview" id="xml_path_preview"></div>
@@ -183,11 +183,12 @@
     function updatePath(type) {
         const basePath = document.getElementById('base_path').value.trim();
         const suffix = document.getElementById(`${type}_suffix`).value.trim();
-// 确保后缀以 / 开头
+        // 确保后缀以 / 开头
         const formattedSuffix = suffix.startsWith('/') ? suffix : '/' + suffix;
-// 计算完整路径
-        const fullPath = basePath + formattedSuffix;
-// 更新隐藏输入框和预览
+        // 计算完整路径
+        let fullPath =  type === 'xml' ? basePath.replace(/src\/main\/java.*/, 'src/main/resources') + suffix : basePath + formattedSuffix
+
+        // 更新隐藏输入框和预览
         document.getElementById(`${type}_path`).value = fullPath;
         document.getElementById(`${type}_path_preview`).textContent = `完整路径: ${fullPath}`;
     }

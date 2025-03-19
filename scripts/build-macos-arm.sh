@@ -1,0 +1,1 @@
+CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o mybatis-plus-generator ../cmd/main.go
