@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"github.com/blastrain/vitess-sqlparser/tidbparser/ast"
@@ -75,6 +76,9 @@ var (
 	commentRegex   = regexp.MustCompile(`(?i)comment\s+on\s+column\s+\w+\.(\w+)\s+is\s+'([^']*)'`)
 )
 
+//go:embed web/static/index.html
+var staticFiles embed.FS
+
 func main() {
 	http.HandleFunc("/", generateHandler)
 	address := ":8080"
@@ -87,8 +91,14 @@ func main() {
 func generateHandler(w http.ResponseWriter, r *http.Request) {
 	// 不是POST请求直接返回静态页面
 	if r.Method != http.MethodPost {
-		http.ServeFile(w, r, "web/static/index.html")
-		return
+		content, err := staticFiles.ReadFile("web/static/index.html")
+		if err != nil {
+			http.Error(w, "找不到页面", http.StatusNotFound)
+			return
+
+		}
+		w.Header().Set("Content-Type", "text/html")
+		w.Write(content)
 	}
 
 	// 获取配置

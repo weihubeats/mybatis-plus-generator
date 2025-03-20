@@ -5,7 +5,7 @@ mybatis plus java code generator,but is use go(mybatis plus 代码自动生成�
 
 ## 源码方式运行
 
-运行cmd中的main方法
+直接运行`main`方法
 
 访问 http://localhost:8080 进入主界面
 
@@ -65,6 +65,10 @@ comment on column influhub_order.pay_amount is '订单支付金额';
 > 目前仅对Postgresql进行了测试,mysql还没有测试
 
 ## 安装包运行方式
+
+[releases](https://github.com/weihubeats/mybatis-plus-generator/releases)页面下载符合自己系统的二进制可执行文件
+
+下载完直接双击运行。然后在浏览器访问`http://localhost:8080`
 
 
 
