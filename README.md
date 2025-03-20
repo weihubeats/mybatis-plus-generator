@@ -70,6 +70,11 @@ comment on column influhub_order.pay_amount is '订单支付金额';
 
 下载完直接双击运行。然后在浏览器访问`http://localhost:8080`
 
+如果遇到MAC应用无法打开或提示“来自身份不明开发者”
+
+解决方法：
+设置→安全与隐私 仍要打开
+![mac-safe.png](doc/mac-safe.png)
 
 
 # 为什么要写这个库
