@@ -68,7 +68,7 @@ comment on column influhub_order.pay_amount is '订单支付金额';
 
 [releases](https://github.com/weihubeats/mybatis-plus-generator/releases)页面下载符合自己系统的二进制可执行文件
 
-下载完直接双击运行。然后在浏览器访问`http://localhost:8080`
+下载完解压双击运行。然后在浏览器访问`http://localhost:8080`
 
 如果遇到MAC应用无法打开或提示“来自身份不明开发者”
 
@@ -137,3 +137,4 @@ public class OrderDAOImpl extends ServiceImpl<OrderMapper, OrderDO> implements O
 }
 ```
 
+在外部只使用`OrderDAO`，将`Wrapper`相关的逻辑都封装在`DAO`中，不蔓延到`Services`

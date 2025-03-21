@@ -99,6 +99,7 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "text/html")
 		w.Write(content)
+		return
 	}
 
 	// 获取配置
