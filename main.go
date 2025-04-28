@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"text/template"
 )
@@ -24,6 +25,7 @@ type Field struct {
 	Type     string // SQL 类型
 	JavaType string // 对应的 Java 类型
 	Comment  string // 字段注释
+	IsId     bool   // 是否为ID字段
 }
 
 // TableInfo 表示表的信息
@@ -35,7 +37,7 @@ type TableInfo struct {
 func (tableInfo *TableInfo) toTemplateFields() []Field {
 	newField := make([]Field, len(tableInfo.Fields))
 	for i, field := range tableInfo.Fields {
-		newField[i] = Field{Name: strcase.ToLowerCamel(field.Name), Type: field.Type, JavaType: field.JavaType, Comment: field.Comment}
+		newField[i] = Field{Name: strcase.ToLowerCamel(field.Name), Type: field.Type, JavaType: field.JavaType, Comment: field.Comment, IsId: field.IsId}
 
 	}
 	return newField
@@ -43,17 +45,20 @@ func (tableInfo *TableInfo) toTemplateFields() []Field {
 }
 
 type TemplateData struct {
-	DOClassName      string
-	MapperClassName  string
-	DAOClassName     string
-	DAOImplClassName string
-	MapperVarName    string
-	TableName        string
-	Fields           []Field
-	DOPackage        string
-	MapperPackage    string
-	DAOPackage       string
-	DAOImplPackage   string
+	DOClassName        string
+	MapperClassName    string
+	DAOClassName       string
+	DAOImplClassName   string
+	MapperVarName      string
+	TableName          string
+	Fields             []Field
+	DOPackage          string
+	MapperPackage      string
+	DAOPackage         string
+	DAOImplPackage     string
+	Imports            []string
+	MapperNamespace    string
+	MybatisPlusImports []string // MyBatis Plus相关导入
 }
 
 type Comment struct {
@@ -141,12 +146,56 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 		DAOImplPackage:   daoImplPackage,
 		DOClassName:      strcase.ToCamel(tableInfo.TableName) + "DO",
 		MapperClassName:  strcase.ToCamel(tableInfo.TableName) + "Mapper",
+		MapperVarName:    strcase.ToLowerCamel(tableInfo.TableName) + "Mapper",
 		DAOClassName:     strcase.ToCamel(tableInfo.TableName) + "DAO",
 		DAOImplClassName: strcase.ToCamel(tableInfo.TableName) + "DAOImpl",
-		MapperVarName:    strings.ToLower(string(tableInfo.TableName[0])) + tableInfo.TableName[1:] + "Mapper",
 		TableName:        tableInfo.TableName,
 		Fields:           tableInfo.toTemplateFields(),
+		MapperNamespace:  mapperPackage + "." + strcase.ToCamel(tableInfo.TableName) + "Mapper", // 完整的命名空间
 	}
+	mybatisPlusImports := []string{
+		"com.baomidou.mybatisplus.annotation.IdType",
+		"com.baomidou.mybatisplus.annotation.TableId",
+		"com.baomidou.mybatisplus.annotation.TableName",
+	}
+	data.MybatisPlusImports = mybatisPlusImports
+
+	hasIdField := false
+	for _, field := range data.Fields {
+		if field.IsId {
+			hasIdField = true
+			break
+		}
+	}
+
+	if !hasIdField {
+		// 如果没有ID字段，移除IdType导入
+		filteredImports := make([]string, 0)
+		for _, imp := range data.MybatisPlusImports {
+			if imp != "com.baomidou.mybatisplus.annotation.IdType" {
+				filteredImports = append(filteredImports, imp)
+			}
+		}
+		data.MybatisPlusImports = filteredImports
+	}
+
+	// 收集并去重导入的包
+	importMap := make(map[string]bool)
+	for _, field := range data.Fields {
+		if importPath := getJavaTypeImport(field.JavaType); importPath != "" {
+			importMap[importPath] = true
+		}
+	}
+
+	// 将收集到的导入包添加到数据中
+	imports := make([]string, 0, len(importMap))
+	for imp := range importMap {
+		imports = append(imports, imp)
+	}
+
+	// 对导入包进行排序，保持生成代码的一致性
+	sort.Strings(imports)
+	data.Imports = imports
 
 	// 定义模板和输出文件的映射
 	tmplPath := config.TmplPath
@@ -215,6 +264,13 @@ func parseMySQLDDL(sql string) (TableInfo, error) {
 		fieldType := col.Tp.InfoSchemaStr()
 		comment := ""
 
+		isId := false
+
+		// 检查是否为ID字段
+		if strings.ToLower(fieldName) == "id" {
+			isId = true
+		}
+
 		// 提取注释
 		for _, opt := range col.Options {
 			if opt.Tp == ast.ColumnOptionComment {
@@ -223,11 +279,24 @@ func parseMySQLDDL(sql string) (TableInfo, error) {
 			}
 		}
 
+		// 检查主键约束
+		for _, cons := range createTableStmt.Constraints {
+			if cons.Tp == ast.ConstraintPrimaryKey {
+				for _, key := range cons.Keys {
+					if key.Column.Name.L == strings.ToLower(fieldName) {
+						isId = true
+						break
+					}
+				}
+			}
+		}
+
 		fields = append(fields, Field{
 			Name:     fieldName,
 			Type:     fieldType,
 			JavaType: sqlTypeToJavaType(fieldType, "mysql"),
 			Comment:  comment,
+			IsId:     isId,
 		})
 	}
 
@@ -262,7 +331,6 @@ func parsePostgreSQLDDL(sql string) (TableInfo, error) {
 		return TableInfo{}, fmt.Errorf("未找到语句")
 	}
 
-	// 遍历每个语句
 	for _, stmt := range stmts {
 		stmtMap, ok := stmt.(map[string]interface{})
 		if !ok {
@@ -274,7 +342,6 @@ func parsePostgreSQLDDL(sql string) (TableInfo, error) {
 		}
 		// 查找 CreateStmt
 		node, _ := stmtObj["Node"].(map[string]interface{})
-
 		createStmt, ok := node["CreateStmt"].(map[string]interface{})
 
 		if !ok {
@@ -291,7 +358,6 @@ func parsePostgreSQLDDL(sql string) (TableInfo, error) {
 
 		// 提取字段
 		tableElts, ok := createStmt["table_elts"].([]interface{})
-
 		if !ok {
 			continue
 		}
@@ -328,16 +394,11 @@ func parsePostgreSQLDDL(sql string) (TableInfo, error) {
 						if ok {
 							typeName, _ = stringObj["sval"].(string)
 						}
-
 					}
-
 				}
-
 			}
 			// 尝试提取注释 - 在 PostgreSQL 中，注释通常是分开的语句
-
 			// 这里我们先提取不到，需要另外处理
-
 			comment := ""
 			// 添加字段
 			fields = append(fields, Field{
@@ -346,6 +407,7 @@ func parsePostgreSQLDDL(sql string) (TableInfo, error) {
 				Type:     typeName,
 				JavaType: sqlTypeToJavaType(typeName, "postgresql"),
 				Comment:  comment,
+				IsId:     strings.EqualFold(colname, "id"), // 检查是否为ID字段
 			})
 
 		}
@@ -361,19 +423,14 @@ func parsePostgreSQLDDL(sql string) (TableInfo, error) {
 	columnComments := make(map[string]string)
 	for _, comment := range comments {
 		if comment.ColumnRef != "" && comment.TableRef == tableName {
-
 			columnComments[comment.ColumnRef] = comment.Content
-
 		}
 
 	}
 
 	for i, field := range fields {
-
 		// 将字段名转回原始的SQL字段名以匹配注释
-
 		originalFieldName := field.Name
-
 		if comment, ok := columnComments[originalFieldName]; ok {
 
 			fields[i].Comment = comment
@@ -526,7 +583,7 @@ func sqlTypeToJavaType(sqlType string, dbType string) string {
 		switch baseType {
 		case "INT", "INTEGER", "SMALLINT":
 			return "Integer"
-		case "BIGINT":
+		case "BIGINT", "BIGSERIAL":
 			return "Long"
 		case "DECIMAL", "NUMERIC":
 			return "BigDecimal"
@@ -630,4 +687,32 @@ func joinValidParts(parts []string) string {
 		return "default.package"
 	}
 	return strings.Join(validParts, ".")
+}
+
+func getJavaTypeImport(javaType string) string {
+	typeImportMap := map[string]string{
+		"BigDecimal":    "java.math.BigDecimal",
+		"LocalDate":     "java.time.LocalDate",
+		"LocalTime":     "java.time.LocalTime",
+		"LocalDateTime": "java.time.LocalDateTime",
+		"Date":          "java.util.Date",
+		"UUID":          "java.util.UUID",
+		"List":          "java.util.List",
+		"ArrayList":     "java.util.ArrayList",
+		"Map":           "java.util.Map",
+		"HashMap":       "java.util.HashMap",
+		"Set":           "java.util.Set",
+		"HashSet":       "java.util.HashSet",
+		"Duration":      "java.time.Duration",
+	}
+
+	// 泛型处理
+	if strings.Contains(javaType, "<") {
+		baseType := javaType[:strings.Index(javaType, "<")]
+		if imp, ok := typeImportMap[baseType]; ok {
+			return imp
+		}
+	}
+	return typeImportMap[javaType]
+
 }
