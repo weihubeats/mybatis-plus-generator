@@ -1,4 +1,4 @@
-package configs
+package config
 
 type Config struct {
 	TmplPath string
@@ -7,7 +7,7 @@ type Config struct {
 func NewConfig() Config {
 
 	return Config{
-		TmplPath: "configs/tmpl/",
+		TmplPath: "config/templates/",
 	}
 
 }
