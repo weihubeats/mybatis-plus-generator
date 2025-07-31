@@ -1,1 +1,1 @@
-CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o build/mybatis-plus-generator-arm ../main.go
+CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o build/mybatis-plus-generator-arm ../cmd/generator/main.go

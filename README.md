@@ -66,7 +66,7 @@ comment on column influhub_order.pay_amount is '订单支付金额';
 
 ## 安装包运行方式
 
-[releases](https://github.com/weihubeats/mybatis-plus-generator/releases)页面下载符合自己系统的二进制可执行文件
+[releases](https://github.com/weihubs/mybatis-plus-generator/releases)页面下载符合自己系统的二进制可执行文件
 
 下载完解压双击运行。然后在浏览器访问`http://localhost:8080`
 
@@ -75,6 +75,69 @@ comment on column influhub_order.pay_amount is '订单支付金额';
 解决方法：
 设置→安全与隐私 仍要打开
 ![mac-safe.png](doc/mac-safe.png)
+
+## 从源码构建
+
+项目提供了多种构建脚本以生成适用于不同操作系统的可执行文件：
+
+### 一键多平台构建（推荐）
+
+```bash
+# 进入脚本目录
+cd scripts
+
+# 运行多平台构建脚本
+./build-all-platforms.sh
+```
+
+构建完成后，所有平台的可执行文件将位于`build`目录中：
+- Linux AMD64: `mybatis-plus-generator-linux-amd64`
+- Linux ARM64: `mybatis-plus-generator-linux-arm64`
+- macOS AMD64: `mybatis-plus-generator-darwin-amd64`
+- macOS ARM64: `mybatis-plus-generator-darwin-arm64`
+- Windows AMD64: `mybatis-plus-generator-windows-amd64.exe`
+
+### 单平台构建脚本
+
+项目还提供了针对特定平台的构建脚本：
+- `build-macos-arm.sh` - 构建macOS ARM64版本
+- `build-macos-x86.sh` - 构建macOS AMD64版本
+- `build-windows-64.sh` - 构建Windows AMD64版本
+
+**注意**：所有构建脚本都需要系统已安装Go环境（版本1.16或更高）才能成功构建。
+
+### 安装Go环境
+
+如果运行构建脚本时提示`go: command not found`，请先安装Go环境：
+
+**macOS用户**：
+- 方法1（推荐）：访问[Go官方下载页面](https://golang.org/dl/)下载适用于macOS ARM64的安装包
+- 方法2：使用Homebrew安装：
+  ```bash
+  brew install go
+  ```
+
+**Linux用户**：
+- Ubuntu/Debian：
+  ```bash
+  sudo apt update
+  sudo apt install golang-go
+  ```
+- CentOS/RHEL/Fedora：
+  ```bash
+  sudo dnf install golang
+  ```
+
+**Windows用户**：
+- 访问[Go官方下载页面](https://golang.org/dl/)下载适用于Windows的安装包
+
+安装完成后，可以通过以下命令验证：
+
+```bash
+go version
+```
+
+如果显示版本号，说明安装成功。
 
 
 # 为什么要写这个库

@@ -123,11 +123,14 @@ func (p *PostgreSQLParser) Parse(sql string) (model.TableInfo, error) {
 	return tableInfo, nil
 }
 
-// formatPostgresTypeName 从 AST 节点中提取并格式化类型名称
 func formatPostgresTypeName(typeName *pg_query.TypeName) string {
 	var parts []string
 	for _, name := range typeName.GetNames() {
 		parts = append(parts, name.GetString_().GetSval())
 	}
-	return strings.Join(parts, " ")
+
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	return "" // Or some other default
 }
