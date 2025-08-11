@@ -1,0 +1,17 @@
+package {{.DOPackage}};
+import lombok.Data;
+{{range .Imports}}
+import {{.}};{{end}}
+{{range .MybatisPlusImports}}
+import {{.}};{{end}}
+
+@Data
+@TableName("{{.TableName}}")
+public class {{.DOClassName}} {
+{{range .Fields}}    /**
+     * {{.Comment}}
+     */
+    {{if .IsId}}@TableId(type = IdType.AUTO)
+    {{end}}private {{.JavaType}} {{.Name}};
+{{end}}
+}

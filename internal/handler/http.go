@@ -12,6 +12,9 @@ import (
 //go:embed web/static/index.html
 var staticFiles embed.FS
 
+//go:embed all:templates
+var templateFiles embed.FS // 我们将使用这个变量
+
 const templateDir = "templates" // 假设模板放在项目根目录的 templates 文件夹下
 
 // GenerateHandler 处理代码生成请求
@@ -59,7 +62,7 @@ func GenerateHandler(w http.ResponseWriter, r *http.Request) {
 	templateData := generator.PrepareTemplateData(tableInfo, paths)
 
 	// 4. 生成文件
-	if err := generator.GenerateFiles(templateData, paths, templateDir); err != nil {
+	if err := generator.GenerateFiles(templateData, paths, templateFiles); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to generate code: %v", err), http.StatusInternalServerError)
 		return
 	}

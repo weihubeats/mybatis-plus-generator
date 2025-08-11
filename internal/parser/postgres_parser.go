@@ -2,7 +2,7 @@ package parser
 
 import (
 	"fmt"
-	pg_query "github.com/pganalyze/pg_query_go/v4"
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"mybatis-plus-generator/internal/model"
 	"strings"
 )

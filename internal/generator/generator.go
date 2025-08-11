@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"embed"
 	"fmt"
 	"mybatis-plus-generator/internal/model"
 	"os"
@@ -44,29 +45,32 @@ func PrepareTemplateData(tableInfo model.TableInfo, paths model.PathConfig) mode
 }
 
 // GenerateFiles 根据模板和数据生成所有代码文件
-func GenerateFiles(data model.TemplateData, paths model.PathConfig, templateDir string) error {
-	templates := map[string]string{
-		filepath.Join(templateDir, "do.tmpl"):         filepath.Join(paths.DOPath, data.DOClassName+".java"),
-		filepath.Join(templateDir, "mapper.tmpl"):     filepath.Join(paths.MapperPath, data.MapperClassName+".java"),
-		filepath.Join(templateDir, "dao.tmpl"):        filepath.Join(paths.DAOPath, data.DAOClassName+".java"),
-		filepath.Join(templateDir, "dao_impl.tmpl"):   filepath.Join(paths.DAOImplPath, data.DAOImplClassName+".java"),
-		filepath.Join(templateDir, "mapper.xml.tmpl"): filepath.Join(paths.XMLPath, data.MapperClassName+".xml"),
+func GenerateFiles(data model.TemplateData, paths model.PathConfig, templatesFS embed.FS) error {
+
+	templateMappings := map[string]string{
+		"templates/do.tmpl":         filepath.Join(paths.DOPath, data.DOClassName+".java"),
+		"templates/mapper.tmpl":     filepath.Join(paths.MapperPath, data.MapperClassName+".java"),
+		"templates/dao.tmpl":        filepath.Join(paths.DAOPath, data.DAOClassName+".java"),
+		"templates/dao_impl.tmpl":   filepath.Join(paths.DAOImplPath, data.DAOImplClassName+".java"),
+		"templates/mapper.xml.tmpl": filepath.Join(paths.XMLPath, data.MapperClassName+".xml"),
 	}
 
-	for tmplFile, outputFile := range templates {
-		if err := generateFromTemplate(tmplFile, data, outputFile); err != nil {
+	for templateName, outputPath := range templateMappings {
+		tmplFile, err := template.New(filepath.Base(templateName)).ParseFS(templatesFS, templateName)
+		if err != nil {
+			return fmt.Errorf("解析嵌入的模板文件 %s 失败: %w", templateName, err)
+		}
+
+		if err := generateFromTemplate(tmplFile, data, outputPath); err != nil {
 			return fmt.Errorf("failed to generate file from template %s: %w", tmplFile, err)
 		}
+
 	}
+
 	return nil
 }
 
-func generateFromTemplate(tmplFile string, data interface{}, outputFile string) error {
-	tmpl, err := template.ParseFiles(tmplFile)
-	if err != nil {
-		return fmt.Errorf("parsing template %s failed: %w", tmplFile, err)
-	}
-
+func generateFromTemplate(tmpl *template.Template, data interface{}, outputFile string) error {
 	if err := os.MkdirAll(filepath.Dir(outputFile), 0755); err != nil {
 		return fmt.Errorf("creating directory %s failed: %w", filepath.Dir(outputFile), err)
 	}
