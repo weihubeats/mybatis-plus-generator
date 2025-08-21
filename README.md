@@ -66,7 +66,7 @@ comment on column influhub_order.pay_amount is '订单支付金额';
 
 ## 安装包运行方式
 
-[releases](https://github.com/weihubs/mybatis-plus-generator/releases)页面下载符合自己系统的二进制可执行文件
+[releases](https://github.com/weihubeats/mybatis-plus-generator/releases)页面下载符合自己系统的二进制可执行文件
 
 下载完解压双击运行。然后在浏览器访问`http://localhost:8080`
 
@@ -97,14 +97,6 @@ cd scripts
 - macOS ARM64: `mybatis-plus-generator-darwin-arm64`
 - Windows AMD64: `mybatis-plus-generator-windows-amd64.exe`
 
-### 单平台构建脚本
-
-项目还提供了针对特定平台的构建脚本：
-- `build-macos-arm.sh` - 构建macOS ARM64版本
-- `build-macos-x86.sh` - 构建macOS AMD64版本
-- `build-windows-64.sh` - 构建Windows AMD64版本
-
-**注意**：所有构建脚本都需要系统已安装Go环境（版本1.16或更高）才能成功构建。
 
 ### 安装Go环境
 
