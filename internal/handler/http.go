@@ -15,8 +15,6 @@ var staticFiles embed.FS
 //go:embed all:templates
 var templateFiles embed.FS // 我们将使用这个变量
 
-const templateDir = "templates" // 假设模板放在项目根目录的 templates 文件夹下
-
 // GenerateHandler 处理代码生成请求
 func GenerateHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -33,12 +31,18 @@ func GenerateHandler(w http.ResponseWriter, r *http.Request) {
 	// 1. 获取和验证输入
 	sql := r.FormValue("sql")
 	dbType := r.FormValue("dbType")
+	orm := model.ORM(r.FormValue("orm"))
+	if orm != model.ORMMyBatisPlus && orm != model.ORMMyBatisFlex {
+		orm = model.ORMMyBatisPlus
+	}
+
 	paths := model.PathConfig{
 		DOPath:      r.FormValue("do_path"),
 		MapperPath:  r.FormValue("mapper_path"),
 		DAOPath:     r.FormValue("dao_path"),
 		DAOImplPath: r.FormValue("dao_impl_path"),
 		XMLPath:     r.FormValue("xml_path"),
+		ORM:         orm,
 	}
 
 	if sql == "" || dbType == "" || paths.DOPath == "" || paths.MapperPath == "" || paths.DAOPath == "" || paths.DAOImplPath == "" || paths.XMLPath == "" {

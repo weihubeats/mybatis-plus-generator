@@ -35,6 +35,7 @@ func (ti *TableInfo) ToTemplateFields() []Field {
 
 // TemplateData 是传递给Go模板的最终数据结构
 type TemplateData struct {
+	ORM                ORM
 	DOClassName        string
 	MapperClassName    string
 	DAOClassName       string
@@ -58,4 +59,23 @@ type PathConfig struct {
 	DAOPath     string
 	DAOImplPath string
 	XMLPath     string
+	ORM         ORM
+}
+
+type ORM string
+
+const (
+	ORMMyBatisPlus ORM = "mybatis-plus"
+	ORMMyBatisFlex ORM = "mybatis-flex"
+)
+
+func Path(ORM ORM) string {
+	if ORM == ORMMyBatisPlus {
+		return "templates/mybatis-plus"
+	}
+	if ORM == ORMMyBatisFlex {
+		return "templates/mybatis-flex"
+	}
+	return "templates/mybatis-plus"
+
 }

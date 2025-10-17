@@ -23,6 +23,7 @@ func PrepareTemplateData(tableInfo model.TableInfo, paths model.PathConfig) mode
 
 	// 准备模板数据
 	data := model.TemplateData{
+		ORM:              paths.ORM,
 		DOPackage:        doPackage,
 		MapperPackage:    mapperPackage,
 		DAOPackage:       daoPackage,
@@ -46,13 +47,14 @@ func PrepareTemplateData(tableInfo model.TableInfo, paths model.PathConfig) mode
 
 // GenerateFiles 根据模板和数据生成所有代码文件
 func GenerateFiles(data model.TemplateData, paths model.PathConfig, templatesFS embed.FS) error {
-
+	// templates/mybatis-flex templates/mybatis-plus
+	pathPrefix := model.Path(paths.ORM)
 	templateMappings := map[string]string{
-		"templates/do.tmpl":         filepath.Join(paths.DOPath, data.DOClassName+".java"),
-		"templates/mapper.tmpl":     filepath.Join(paths.MapperPath, data.MapperClassName+".java"),
-		"templates/dao.tmpl":        filepath.Join(paths.DAOPath, data.DAOClassName+".java"),
-		"templates/dao_impl.tmpl":   filepath.Join(paths.DAOImplPath, data.DAOImplClassName+".java"),
-		"templates/mapper.xml.tmpl": filepath.Join(paths.XMLPath, data.MapperClassName+".xml"),
+		pathPrefix + "/do.tmpl":         filepath.Join(paths.DOPath, data.DOClassName+".java"),
+		pathPrefix + "/mapper.tmpl":     filepath.Join(paths.MapperPath, data.MapperClassName+".java"),
+		pathPrefix + "/dao.tmpl":        filepath.Join(paths.DAOPath, data.DAOClassName+".java"),
+		pathPrefix + "/dao_impl.tmpl":   filepath.Join(paths.DAOImplPath, data.DAOImplClassName+".java"),
+		pathPrefix + "/mapper.xml.tmpl": filepath.Join(paths.XMLPath, data.MapperClassName+".xml"),
 	}
 
 	for templateName, outputPath := range templateMappings {
@@ -191,80 +193,6 @@ func extractPackageName(path string) string {
 	}
 
 	return defaultPackage
-}
-
-func SqlTypeToJavaType(sqlType string, dbType string) string {
-	sqlType = strings.ToUpper(strings.TrimSpace(sqlType))
-	dbType = strings.ToLower(dbType)
-
-	// 处理带长度的类型，如 VARCHAR(255)
-	typeParts := strings.Split(sqlType, "(")
-	baseType := typeParts[0]
-
-	if dbType == "mysql" {
-		switch baseType {
-		case "INT", "INTEGER", "SMALLINT", "MEDIUMINT", "TINYINT":
-			if baseType == "TINYINT" && len(typeParts) > 1 && strings.TrimRight(typeParts[1], ")") == "1" {
-				return "Boolean"
-			}
-			return "Integer"
-		case "BIGINT":
-			return "Long"
-		case "DECIMAL", "NUMERIC":
-			return "BigDecimal"
-		case "FLOAT", "DOUBLE", "REAL":
-			return "Double"
-		case "BOOLEAN", "BOOL":
-			return "Boolean"
-		case "DATE":
-			return "LocalDate"
-		case "TIME":
-			return "LocalTime"
-		case "TIMESTAMP", "DATETIME":
-			return "LocalDateTime"
-		case "CHAR", "VARCHAR", "TEXT", "TINYTEXT", "MEDIUMTEXT", "LONGTEXT":
-			return "String"
-		case "BLOB", "MEDIUMBLOB", "LONGBLOB", "BINARY", "VARBINARY":
-			return "byte[]"
-		default:
-			return "String"
-		}
-	} else if dbType == "postgresql" || dbType == "postgres" {
-		switch baseType {
-		case "INT", "INTEGER", "SMALLINT", "INT4":
-			return "Integer"
-		case "BIGINT", "BIGSERIAL", "INT8":
-			return "Long"
-		case "DECIMAL", "NUMERIC":
-			return "BigDecimal"
-		case "REAL", "DOUBLE PRECISION":
-			return "Double"
-		case "BOOLEAN":
-			return "Boolean"
-		case "DATE":
-			return "LocalDate"
-		case "TIME", "TIME WITHOUT TIME ZONE", "TIME WITH TIME ZONE":
-			return "LocalTime"
-		case "TIMESTAMP", "TIMESTAMP WITHOUT TIME ZONE", "TIMESTAMP WITH TIME ZONE":
-			return "LocalDateTime"
-		case "CHAR", "CHARACTER", "VARCHAR", "CHARACTER VARYING", "TEXT":
-			return "String"
-		case "BYTEA":
-			return "byte[]"
-		case "UUID":
-			return "UUID"
-		case "JSON", "JSONB":
-			return "String" // 或者使用特定的JSON库
-		case "ARRAY":
-			return "List<Object>" // 或者更具体的类型
-		case "INTERVAL":
-			return "Duration"
-		default:
-			return "String"
-		}
-	}
-
-	return "String" // 默认
 }
 
 func isPackageRoot(part string) bool {
